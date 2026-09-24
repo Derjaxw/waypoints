@@ -510,20 +510,34 @@
   const EMOJIS = ['📍','⭐','❤️','🏠','🍜','☕','🍕','🍺','🛒','🏋️','⚽','🛹','🎮','🎵','🎨','📷','🌳','🌊','⛰️','🏕️',
                   '🚲','🚗','🚆','🅿️','🔌','🔧','💡','📡','🏢','🏫','🏥','🐶','🌸','🔥','⚠️','❓','💎','🎯','🧭','🚩'];
   const NO_CAT = { id: null, name: 'No category', emoji: '📍', color: '#6B7080' };
-  const CARTO_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
-  const BASES = {
+  // Optional: a free CARTO key (carto.com/basemaps/apikey) switches Streets/Night to CARTO's styles.
+  // Leave empty to use the keyless maps below.
+  const CARTO_KEY = '';
+  const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  const CARTO_ATTR = OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+  const ck = CARTO_KEY ? '?key=' + encodeURIComponent(CARTO_KEY) : '';
+  const SATELLITE = { name: 'Satellite', desc: 'Aerial photos',
+                      url: ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                      attr: 'Imagery &copy; Esri, Maxar, Earthstar Geographics', opts: { maxZoom: 19, maxNativeZoom: 18 } };
+  const BASES = CARTO_KEY ? {
     street:    { name: 'Streets', desc: 'Clean and easy to read',
-                 url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                 url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png' + ck,
                  attr: CARTO_ATTR, opts: { subdomains: 'abcd', maxZoom: 19 } },
     dark:      { name: 'Night', desc: 'Dark map, easy on the eyes',
-                 url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                 url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' + ck,
                  attr: CARTO_ATTR, opts: { subdomains: 'abcd', maxZoom: 19 } },
     osm:       { name: 'OpenStreetMap', desc: 'Most detail: paths, shops, house numbers',
-                 url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                 attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', opts: { maxZoom: 19 } },
-    satellite: { name: 'Satellite', desc: 'Aerial photos',
-                 url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                 attr: 'Imagery &copy; Esri, Maxar, Earthstar Geographics', opts: { maxZoom: 19, maxNativeZoom: 18 } }
+                 url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, opts: { maxZoom: 19 } },
+    satellite: SATELLITE
+  } : {
+    street:    { name: 'Streets', desc: 'OpenStreetMap: paths, shops, house numbers',
+                 url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, opts: { maxZoom: 19 } },
+    dark:      { name: 'Night', desc: 'Dark map, easy on the eyes',
+                 url: ESRI + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+                 labels: ESRI + 'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+                 attr: 'Tiles &copy; Esri, HERE, Garmin, ' + OSM_ATTR, opts: { maxZoom: 19, maxNativeZoom: 16 } },
+    satellite: SATELLITE
   };
 
   /* ================= Helpers ================= */
@@ -658,10 +672,11 @@
   let baseLayer = null;
   const resolvedBase = () => state.base === 'auto' ? (darkMQ.matches ? 'dark' : 'street') : state.base;
   function applyBase() {
-    const b = BASES[resolvedBase()];
+    const b = BASES[resolvedBase()] || BASES.street;
     if (baseLayer) map.removeLayer(baseLayer);
-    baseLayer = L.tileLayer(b.url, Object.assign({ attribution: b.attr }, b.opts)).addTo(map);
-    baseLayer.bringToBack();
+    const layers = [L.tileLayer(b.url, Object.assign({ attribution: b.attr }, b.opts))];
+    if (b.labels) layers.push(L.tileLayer(b.labels, b.opts));
+    baseLayer = L.layerGroup(layers).addTo(map);
   }
   const onScheme = () => { if (state.base === 'auto') applyBase(); };
   if (darkMQ.addEventListener) darkMQ.addEventListener('change', onScheme); else darkMQ.addListener(onScheme);
